@@ -2,17 +2,19 @@
 header("Access-Control-Allow-Origin: *"); // يسمح لـ Godot بالاتصال من أي مكان
 header("Content-Type: application/json");
 
-// Railway يعطي بيانات الاتصال عبر متغيرات البيئة (Environment Variables)
-$host = getenv('MYSQLHOST') ?: "mysql.railway.internal";
-$user = getenv('MYSQLUSER') ?: "root";
-$pass = getenv('MYSQLPASSWORD') ?: "ECKBIDYVEBuQjPslIPgwwGWFsyUUoPao";
-$db   = getenv('MYSQLDATABASE') ?: "railway";
-$port = getenv('MYSQLPORT') ?: "3306";
+$host = getenv('MYSQLHOST');
+$user = getenv('MYSQLUSER');
+$pass = getenv('MYSQLPASSWORD');
+$db   = getenv('MYSQLDATABASE');
+$port = getenv('MYSQLPORT');
 
+// الاتصال مع تحديد المنفذ (مهم جداً في Railway)
 $conn = new mysqli($host, $user, $pass, $db, $port);
 
 if ($conn->connect_error) {
-    die(json_encode(["error" => "Connection failed"]));
+    // هذا سيطبع الخطأ الحقيقي في سجلات Railway (Logs)
+    error_log("Connection failed: " . $conn->connect_error);
+    die(json_encode(["error" => "Database connection failed"]));
 }
 
 $json = file_get_contents('php://input');
