@@ -24,12 +24,13 @@ if (strpos($phone, '0') === 0) {
 $prefix = substr($phone, 3, 2); 
 $sku = "";
 // --- تصحيح الأكواد بناءً على رد السيرفر الأخير ---
+// --- الأكواد المحدثة لعام 2026 لضمان القبول في Ding Connect ---
 if ($prefix == "61" || $prefix == "62" || $prefix == "63" || $prefix == "64" || $prefix == "65" || $prefix == "66" || $prefix == "67" || $prefix == "69") {
-    $sku = "DZ_MOBILIS"; // كود موبيليس البديل
+    $sku = "DZ_MOB_NAT";  // Mobilis
 } elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
-    $sku = "DZ_DJEZZY";  // كود جيزي البديل (الذي فشل كان NAT_DZ_DJEZZY)
+    $sku = "DZ_OT_NAT";   // Djezzy
 } elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
-    $sku = "DZ_OOREDOO";  // كود أوريدو البديل
+    $sku = "DZ_WT_NAT";   // Ooredoo
 }
 
 if ($sku == "") {
