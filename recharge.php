@@ -2,7 +2,7 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-// بيانات Ding Connect الخاصة بك
+// مفتاح الـ API الخاص بك الذي قدمته
 $api_key = "6DBlPJy48l86NVLofTrSS8";
 
 // استقبال البيانات من تطبيق Godot
@@ -13,35 +13,41 @@ if (!$data) {
     die(json_encode(["status" => "error", "message" => "No data received"]));
 }
 
-$phone = $data['phone']; // مثال: 0661223344
+$phone = $data['phone']; 
 $amount = $data['amount'];
 
-// 1. تنظيف وتحويل الرقم للصيغة الدولية (213)
-$phone = preg_replace('/[^0-9]/', '', $phone); // إزالة أي رموز غير الأرقام
+// 1. تنظيف الرقم وتحويله للصيغة الدولية (213)
+$phone = preg_replace('/[^0-9]/', '', $phone); 
 if (strpos($phone, '0') === 0) {
     $phone = "213" . substr($phone, 1);
 } elseif (strpos($phone, '213') !== 0) {
     $phone = "213" . $phone;
 }
 
-// 2. التعرف على الشركة والـ Provider ID و SkuCode
+// 2. تحديد الشبكة بناءً على أول رقمين بعد رمز الدولة
+// الرقم الدولي يكون 2137... أو 2136... أو 2135...
+$prefix = substr($phone, 3, 2); 
+
 $sku = "";
 $provider_id = 0;
-$prefix = substr($phone, 3, 2); // يأخذ الرقمين بعد 213
 
 if ($prefix == "61" || $prefix == "62" || $prefix == "63" || $prefix == "64" || $prefix == "65" || $prefix == "66" || $prefix == "67" || $prefix == "69") {
-    $sku = "NAT_DZ_MOBILIS_OPEN"; // الكود المفتوح للمبالغ المتغيرة
+    // موبيليس
+    $sku = "NAT_DZ_MOBILIS"; 
     $provider_id = 420; 
 } elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
-    $sku = "NAT_DZ_DJEZZY_OPEN";
+    // جيزي
+    $sku = "NAT_DZ_DJEZZY";
     $provider_id = 421;
 } elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
-    $sku = "NAT_DZ_OOREDOO_OPEN";
+    // أوريدو
+    $sku = "NAT_DZ_OOREDOO";
     $provider_id = 422;
 }
 
+// التحقق إذا لم يتم التعرف على الرقم
 if ($sku == "") {
-    die(json_encode(["status" => "error", "message" => "Unknown Operator Prefix: " . $prefix]));
+    die(json_encode(["status" => "error", "message" => "Unknown Operator: Prefix " . $prefix]));
 }
 
 // 3. بناء طلب الـ API لـ Ding Connect
@@ -50,8 +56,8 @@ $post_data = [
     "SkuCode" => $sku,
     "SendAmount" => $amount,
     "PhoneNumber" => $phone,
-    "DistributorRef" => uniqid("godot_"), // مرجع فريد لكل عملية
-    "ValidateOnly" => true // اجعلها true إذا كنت تريد التجربة بدون خصم رصيد حقيقي
+    "DistributorRef" => uniqid("godot_"), 
+    "ValidateOnly" => true // اجعلها true للتجربة بدون خصم رصيد
 ];
 
 $ch = curl_init($url);
@@ -68,7 +74,7 @@ $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// 4. إرسال الرد إلى Godot
+// 4. إرجاع النتيجة لتطبيق Godot
 if ($http_code == 200) {
     echo $response;
 } else {
