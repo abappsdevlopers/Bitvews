@@ -23,12 +23,13 @@ if (strpos($phone, '0') === 0) {
 // 2. تحديد الشبكة
 $prefix = substr($phone, 3, 2); 
 $sku = "";
+// --- تصحيح الأكواد بناءً على رد السيرفر الأخير ---
 if ($prefix == "61" || $prefix == "62" || $prefix == "63" || $prefix == "64" || $prefix == "65" || $prefix == "66" || $prefix == "67" || $prefix == "69") {
-    $sku = "NAT_DZ_MOBILIS"; 
+    $sku = "DZ_MOB_NAT"; // كود موبيليس البديل
 } elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
-    $sku = "NAT_DZ_DJEZZY";
+    $sku = "DZ_OT_NAT";  // كود جيزي البديل (الذي فشل كان NAT_DZ_DJEZZY)
 } elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
-    $sku = "NAT_DZ_OOREDOO";
+    $sku = "DZ_WT_NAT";  // كود أوريدو البديل
 }
 
 if ($sku == "") {
