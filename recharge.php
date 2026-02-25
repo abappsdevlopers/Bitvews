@@ -12,38 +12,42 @@ if (!$data) {
 }
 
 $phone = $data['phone']; 
-$amount = $data['amount'];
+$amount = (int)$data['amount']; // تحويل المبلغ لرقم صحيح للمقارنة
 
-// 1. تنظيف الرقم (يجب أن يكون 213 ثم الرقم بدون + وبدون أصفار)
+// 1. تنظيف وتجهيز الرقم (213...)
 $phone = preg_replace('/[^0-9]/', '', $phone); 
 if (strpos($phone, '0') === 0) {
     $phone = "213" . substr($phone, 1);
 }
 
-// 2. تحديد الشبكة
+// 2. تحديد الـ SkuCode بناءً على الشبكة والمبلغ (مستخرج من ملفك Products.xlsx)
 $prefix = substr($phone, 3, 2); 
 $sku = "";
-// --- تصحيح الأكواد بناءً على رد السيرفر الأخير ---
-// --- الأكواد المحدثة لعام 2026 لضمان القبول في Ding Connect ---
+
 if ($prefix == "61" || $prefix == "62" || $prefix == "63" || $prefix == "64" || $prefix == "65" || $prefix == "66" || $prefix == "67" || $prefix == "69") {
-    $sku = "DZ_MB_TopUp";  // Mobilis
-} elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
-    $sku = "DZ_DJ_TopUp";   // Djezzy
-} elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
-    $sku = "DZ_OT_TopUp";   // Ooredoo
+    // Mobilis - موبيليس
+    $sku = ($amount >= 500) ? "MDDZDZ36714" : "MDDZDZ89262"; 
+} 
+elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
+    // Djezzy - جيزي
+    $sku = ($amount >= 500) ? "DJDZDZ45928" : "DJDZDZ71553";
+} 
+elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
+    // Ooredoo - أوريدو
+    $sku = ($amount >= 500) ? "OODZDZ53377" : "OODZDZ59569";
 }
 
 if ($sku == "") {
-    die(json_encode(["status" => "error", "message" => "Unknown Operator"]));
+    die(json_encode(["status" => "error", "message" => "Unknown Operator or Sku"]));
 }
 
-// 3. بناء الطلب باستخدام المفاتيح التي طلبها الخطأ (SendValue)
+// 3. بناء الطلب بالمعايير الصحيحة لـ DingConnect
 $url = "https://api.dingconnect.com/api/V1/SendTransfer";
 $post_data = [
     "SkuCode" => $sku,
-    "SendValue" => (float)$amount, // تم التغيير من SendAmount إلى SendValue
-    "AccountNumber" => (string)$phone, // تم التغيير من PhoneNumber إلى AccountNumber
-    "DistributorRef" => uniqid("godot_"), 
+    "SendValue" => (float)$amount, 
+    "AccountNumber" => (string)$phone,
+    "DistributorRef" => uniqid("BitView_"), 
     "ValidateOnly" => false
 ];
 
@@ -61,5 +65,6 @@ $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
+// طباعة الرد النهائي للتطبيق
 echo $response;
 ?>
