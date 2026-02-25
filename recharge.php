@@ -12,42 +12,49 @@ if (!$data) {
 }
 
 $phone = $data['phone']; 
-$amount = (int)$data['amount']; // تحويل المبلغ لرقم صحيح للمقارنة
+$amount_from_godot = $data['amount']; // هذه القيمة قادمة من جودو بالدولار الآن
 
-// 1. تنظيف وتجهيز الرقم (213...)
+// 1. تنظيف الرقم
 $phone = preg_replace('/[^0-9]/', '', $phone); 
 if (strpos($phone, '0') === 0) {
     $phone = "213" . substr($phone, 1);
 }
 
-// 2. تحديد الـ SkuCode بناءً على الشبكة والمبلغ (مستخرج من ملفك Products.xlsx)
 $prefix = substr($phone, 3, 2); 
 $sku = "";
+$send_value = 0.0;
 
+// 2. مطابقة الـ Sku مع السعر الدقيق بالدولار من ملف Excel الخاص بك
 if ($prefix == "61" || $prefix == "62" || $prefix == "63" || $prefix == "64" || $prefix == "65" || $prefix == "66" || $prefix == "67" || $prefix == "69") {
-    // Mobilis - موبيليس
-    $sku = ($amount >= 500) ? "MDDZDZ36714" : "MDDZDZ89262"; 
+    // Mobilis
+    if ($amount_from_godot < 2.0) { $sku = "MDDZDZ89262"; $send_value = 1.03; } // 100 DZD
+    elseif ($amount_from_godot < 4.0) { $sku = "MDDZDZ66459"; $send_value = 2.05; } // 200 DZD
+    else { $sku = "MDDZDZ36714"; $send_value = 5.13; } // 500 DZD
 } 
 elseif ($prefix == "77" || $prefix == "78" || $prefix == "79") {
-    // Djezzy - جيزي
-    $sku = ($amount >= 500) ? "DJDZDZ45928" : "DJDZDZ71553";
+    // Djezzy
+    if ($amount_from_godot < 2.0) { $sku = "DJDZDZ71553"; $send_value = 1.03; } // 100 DZD
+    elseif ($amount_from_godot < 4.0) { $sku = "DJDZDZ44375"; $send_value = 2.05; } // 200 DZD
+    else { $sku = "DJDZDZ45928"; $send_value = 5.13; } // 500 DZD
 } 
 elseif ($prefix == "54" || $prefix == "55" || $prefix == "56") {
-    // Ooredoo - أوريدو
-    $sku = ($amount >= 500) ? "OODZDZ53377" : "OODZDZ59569";
+    // Ooredoo
+    if ($amount_from_godot < 2.0) { $sku = "OODZDZ59569"; $send_value = 1.03; } // 100 DZD
+    elseif ($amount_from_godot < 4.0) { $sku = "OODZDZ10118"; $send_value = 2.05; } // 200 DZD
+    else { $sku = "OODZDZ53377"; $send_value = 5.13; } // 500 DZD
 }
 
 if ($sku == "") {
-    die(json_encode(["status" => "error", "message" => "Unknown Operator or Sku"]));
+    die(json_encode(["status" => "error", "message" => "Operator not supported"]));
 }
 
-// 3. بناء الطلب بالمعايير الصحيحة لـ DingConnect
+// 3. إرسال الطلب إلى DingConnect
 $url = "https://api.dingconnect.com/api/V1/SendTransfer";
 $post_data = [
     "SkuCode" => $sku,
-    "SendValue" => (float)$amount, 
+    "SendValue" => (float)$send_value, // إرسال القيمة الدقيقة بالدولار
     "AccountNumber" => (string)$phone,
-    "DistributorRef" => uniqid("BitView_"), 
+    "DistributorRef" => uniqid("BitV_"), 
     "ValidateOnly" => false
 ];
 
@@ -62,9 +69,7 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
 ]);
 
 $response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// طباعة الرد النهائي للتطبيق
 echo $response;
 ?>
