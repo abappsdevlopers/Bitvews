@@ -44,7 +44,7 @@ $post_data = [
     "SendValue" => (float)$amount, // تم التغيير من SendAmount إلى SendValue
     "AccountNumber" => (string)$phone, // تم التغيير من PhoneNumber إلى AccountNumber
     "DistributorRef" => uniqid("godot_"), 
-    "ValidateOnly" => true
+    "ValidateOnly" => false
 ];
 
 $ch = curl_init($url);
