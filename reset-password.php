@@ -1,73 +1,62 @@
 <?php
-// منع خروج أي تحذيرات تفسد الـ JSON
 error_reporting(0);
 ob_start();
 
-// 1. استدعاء متغيرات البيئة من Railway
+// 1. إعدادات قاعدة البيانات من ريلواي
 $host = getenv('MYSQLHOST');
 $user = getenv('MYSQLUSER');
 $pass = getenv('MYSQLPASSWORD');
-$db   = getenv('MYSQLDATABASE'); // تم تصحيح الرموز هنا
+$db   = getenv('MYSQLDATABASE');
 $port = getenv('MYSQLPORT');
-$apiKey = getenv('FIREBASE_KEY'); 
 
-// تنظيف أي مخرجات سابقة لضمان JSON نظيف
 ob_clean();
 header('Content-Type: application/json');
 
-// 2. الاتصال بقاعدة البيانات
 $conn = new mysqli($host, $user, $pass, $db, $port);
 
 if ($conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "Database Connection Failed"]));
+    die(json_encode(["status" => "error", "message" => "Connection Failed"]));
 }
 
-// 3. استلام البيانات من Godot
+// 2. استلام الإيميل من جودو
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 $email = isset($data['email']) ? trim($data['email']) : '';
 
 if (empty($email)) {
-    die(json_encode(["status" => "error", "message" => "Email is required"]));
+    die(json_encode(["status" => "error", "message" => "Email required"]));
 }
 
-// 4. التحقق من وجود الإيميل
+// 3. التحقق من وجود المستخدم في قاعدة بياناتك (MySQL)
 $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
-$result = $stmt->get_result();
+$res = $stmt->get_result();
 
-if ($result->num_rows === 0) {
-    echo json_encode(["status" => "error", "message" => "Email not found in our records"]);
-    $stmt->close();
-    $conn->close();
-    exit;
+if ($res->num_rows === 0) {
+    die(json_encode(["status" => "error", "message" => "Email not found"]));
 }
 
-// 5. طلب إعادة التعيين من Firebase
-$url = "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=" . $apiKey;
-$payload = json_encode(["requestType" => "PASSWORD_RESET", "email" => $email]);
+// 4. توليد كود عشوائي (مثلاً من 6 أرقام)
+$reset_code = rand(100000, 999999);
 
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+// 5. حفظ الكود في قاعدة البيانات (تحتاج لإضافة عمود reset_code في جدول users)
+$update = $conn->prepare("UPDATE users SET reset_code = ? WHERE email = ?");
+$update->bind_param("is", $reset_code, $email);
+$update->execute();
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+// 6. إرسال الإيميل (باستخدام دالة mail في PHP)
+$to = $email;
+$subject = "Your Password Reset Code";
+$message = "Hello, your code to reset password is: " . $reset_code;
+$headers = "From: support@your-app.com";
 
-// 6. الرد النهائي
-if ($httpCode === 200) {
-    echo json_encode(["status" => "success", "message" => "success: email sent"]);
+if (mail($to, $subject, $message, $headers)) {
+    echo json_encode(["status" => "success", "message" => "success: code sent"]);
 } else {
-    // إظهار تفاصيل الخطأ القادم من فيسبوك للمساعدة في الديباجينج
-    $resData = json_decode($response, true);
-    $msg = isset($resData['error']['message']) ? $resData['error']['message'] : "Firebase Error";
-    echo json_encode(["status" => "error", "message" => $msg]);
+    // ملاحظة: أغلب السيرفرات السحابية تمنع دالة mail() العادية
+    echo json_encode(["status" => "error", "message" => "Server cannot send email"]);
 }
 
-$stmt->close();
 $conn->close();
 ?>
