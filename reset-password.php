@@ -1,38 +1,32 @@
 <?php
-// 1. منع أي أخطاء PHP من الظهور وإفساد الـ JSON
+// منع ظهور الأخطاء وتفعيل التخزين المؤقت للمخرجات
 error_reporting(0);
+ini_set('display_errors', 0);
 ob_start();
 
-// 2. إعدادات البيئة من ريلواي
+// 1. إعدادات البيئة
 $host = getenv('MYSQLHOST');
 $user = getenv('MYSQLUSER');
-$pass_db = getenv('MYSQLPASSWORD'); // استخدمت اسم مختلف للمتغير لتجنب الخلط مع كلمة مرور المستخدم
+$pass_db = getenv('MYSQLPASSWORD');
 $db = getenv('MYSQLDATABASE');
 $port = getenv('MYSQLPORT');
 
-// 3. تنظيف أي مخرجات غريبة قبل إرسال الهيدر
+// 2. تنظيف قسري للمخرجات لإزالة أي مسافات مخفية أو أخطاء
 ob_clean();
 header('Content-Type: application/json; charset=utf-8');
 
-// 4. الاتصال بقاعدة البيانات
 $conn = new mysqli($host, $user, $pass_db, $db, $port);
 
 if ($conn->connect_error) {
-    echo json_encode(["status" => "error", "message" => "Connection Failed"]);
+    echo json_encode(["status" => "error", "message" => "DB Connection Failed"]);
     exit;
 }
 
-// 5. استقبال البيانات من Godot
 $input = json_decode(file_get_contents('php://input'), true);
-$email_input = isset($input['email']) ? trim($input['input']) : (isset($input['email']) ? trim($input['email']) : '');
-
-// تصحيح بسيط لضمان التقاط الإيميل أياً كان مسمى المفتاح
-if (empty($email_input)) {
-    $email_input = $input['email'] ?? '';
-}
+$email_input = isset($input['email']) ? trim($input['email']) : '';
 
 if (!empty($email_input)) {
-    // 6. استخدام أسماء الأعمدة الخاصة بك (email و pass)
+    // استخدام أسماء الأعمدة الخاصة بك: email و pass
     $stmt = $conn->prepare("SELECT pass FROM users WHERE email = ?");
     $stmt->bind_param("s", $email_input);
     $stmt->execute();
@@ -40,14 +34,14 @@ if (!empty($email_input)) {
 
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
-        // 7. إرسال البيانات بالمسميات التي يتوقعها كود Godot الجديد
+        // إرسال البيانات (تأكد أن جودو يقرأ هذه المفاتيح)
         echo json_encode([
             "status" => "success", 
             "user_email" => $email_input,
-            "user_pass" => $row['pass'] // استخدام 'pass' من قاعدة البيانات
+            "user_pass" => $row['pass']
         ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Email not found in database"]);
+        echo json_encode(["status" => "error", "message" => "Email not found"]);
     }
     $stmt->close();
 } else {
