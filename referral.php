@@ -1,7 +1,7 @@
 <?php
 header("Content-Type: application/json");
 
-// 1. جلب معلومات قاعدة البيانات من متغيرات بيئة Railway
+// 1. إعدادات قاعدة البيانات من Railway
 $host = getenv('MYSQLHOST') ?: getenv('DATABASE_URL');
 $user = getenv('MYSQLUSER');
 $pass = getenv('MYSQLPASSWORD');
@@ -9,52 +9,55 @@ $db   = getenv('MYSQLDATABASE');
 $port = getenv('MYSQLPORT') ?: "3306";
 
 try {
-    // 2. الاتصال بقاعدة البيانات باستخدام PDO
     $dsn = "mysql:host=$host;dbname=$db;port=$port;charset=utf8mb4";
     $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
 
-    // 3. استقبال البيانات القادمة من تطبيق Godot
+    // 2. استقبال البيانات (دعم JSON و POST العادي)
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    if ($data && isset($data['referrer_id'])) {
-        $referrer_id = $data['referrer_id'];
-        $reward = (int)$data['reward_amount'];
+    // إذا لم يكن JSON، نحاول جلبها من $_POST (للتوافق مع بعض طرق Godot)
+    $referrer_id = $data['referrer_id'] ?? $_POST['referrer_id'] ?? null;
+    $reward = (int)($data['reward_amount'] ?? $_POST['reward_amount'] ?? 0);
 
-        // 4. تحديث رصيد الشخص الذي شارك الرابط (الداعي)
-        // تأكد أن أسماء الأعمدة (coins, user_id) تطابق جدولك بالضبط
-        $sql = "UPDATE users SET coins = coins + ? WHERE user_id = ?";
+    if ($referrer_id && $reward > 0) {
+        
+        // ملاحظة هامة: تأكد أن اسم العمود في جدولك هو 'id' أو 'user_id' 
+        // سأستخدم 'user_id' بناءً على كودك السابق
+        $sql = "UPDATE users SET coins = coins + :reward WHERE user_id = :ref_id";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$reward, $referrer_id]);
+        $stmt->execute([
+            ':reward' => $reward,
+            ':ref_id' => $referrer_id
+        ]);
 
-        // التحقق مما إذا كان المعرف موجوداً فعلياً وتم التحديث
         if ($stmt->rowCount() > 0) {
             echo json_encode([
-                "status" => "success", 
-                "message" => "Reward added to referrer: " . $referrer_id
+                "status" => "success",
+                "message" => "تم إضافة $reward نقطة للمشارك رقم: $referrer_id"
             ]);
         } else {
+            // سجل الخطأ في قاعدة البيانات أو استجب بأن المعرف غير موجود
             echo json_encode([
-                "status" => "error", 
-                "message" => "Referrer ID not found in database"
+                "status" => "error",
+                "message" => "لم يتم العثور على معرف المشارك في قاعدة البيانات أو لم يتغير الرصيد"
             ]);
         }
     } else {
         echo json_encode([
-            "status" => "error", 
-            "message" => "Invalid JSON or missing referrer_id"
+            "status" => "error",
+            "message" => "بيانات غير مكتملة. المعرف: $referrer_id ، القيمة: $reward"
         ]);
     }
 
 } catch (PDOException $e) {
-    // في حال فشل الاتصال بقاعدة البيانات
     http_response_code(500);
     echo json_encode([
-        "status" => "error", 
-        "message" => "Database connection failed: " . $e->getMessage()
+        "status" => "error",
+        "message" => "فشل الاتصال: " . $e->getMessage()
     ]);
 }
 ?>
