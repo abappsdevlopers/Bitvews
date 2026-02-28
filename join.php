@@ -1,7 +1,6 @@
 <?php
 // join.php
 $invite_id = $_GET['invite_id'] ?? '';
-// رابط تطبيقك
 $play_store_url = "https://github.com/abappsdevlopers/Bitvews/releases/download/app/BitView.apk";
 ?>
 <!DOCTYPE html>
@@ -9,115 +8,102 @@ $play_store_url = "https://github.com/abappsdevlopers/Bitvews/releases/download/
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BitView - انضم إلينا</title>
+    <title>BitView - هدية بانتظارك</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Cairo', sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: #0f172a;
             color: white;
-            height: 100vh;
             margin: 0;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
             text-align: center;
-            overflow: hidden;
         }
-
-        .container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 400px;
+        .card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             width: 90%;
+            max-width: 380px;
+            border: 1px solid #334155;
         }
-
-        .logo {
-            font-size: 3rem;
-            font-weight: bold;
+        .icon-box {
+            font-size: 50px;
             margin-bottom: 10px;
-            letter-spacing: 2px;
-            color: #00d2ff;
         }
-
-        .loader {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #00d2ff;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
+        h1 { font-size: 22px; color: #38bdf8; margin-bottom: 5px; }
+        p { color: #94a3b8; font-size: 15px; line-height: 1.6; }
+        
+        .download-btn {
+            display: block;
+            background: #38bdf8;
+            color: #0f172a;
+            text-decoration: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-top: 25px;
+            transition: transform 0.2s, background 0.2s;
+            border: none;
+            width: 100%;
+            cursor: pointer;
         }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        h1 { font-size: 1.5rem; margin-bottom: 10px; }
-        p { font-size: 1rem; color: #e0e0e0; margin-bottom: 20px; }
-
-        .footer-note {
-            font-size: 0.8rem;
-            opacity: 0.7;
-            margin-top: 30px;
-        }
-
-        /* تنسيق مخفي لعملية النسخ */
-        #temp_clipboard {
-            position: absolute;
-            left: -9999px;
+        .download-btn:active { transform: scale(0.95); background: #7dd3fc; }
+        
+        .badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="logo">BitView</div>
-        <h1>مرحباً بك في عالم الربح!</h1>
-        <p>جاري تحضير رابط التحميل الآمن وتجهيز كود الإحالة الخاص بك...</p>
+    <div class="card">
+        <div class="icon-box">🎁</div>
+        <h1>لقد تمت دعوتك!</h1>
+        <p>قم بتحميل التطبيق الآن للحصول على مكافأتك. سيتم تفعيل كود الإحالة تلقائياً عند الضغط على الزر.</p>
         
-        <div class="loader"></div>
-        
-        <p id="status_msg">يرجى الانتظار ثانية واحدة...</p>
+        <div class="badge">كود الدعوة جاهز للتفعيل ✅</div>
 
-        <div class="footer-note">
-            ستبدأ عملية التحميل تلقائياً، تأكد من تثبيت التطبيق والبدء في الكسب.
-        </div>
+        <button onclick="copyAndDownload()" class="download-btn">
+            تحميل وتفعيل المكافأة
+        </button>
+
+        <p style="font-size: 11px; margin-top: 15px;">بضغطك على الزر، أنت توافق على شروط الخدمة.</p>
     </div>
 
-    <textarea id="temp_clipboard"><?php echo htmlspecialchars($invite_id); ?></textarea>
+    <input type="text" value="<?php echo htmlspecialchars($invite_id); ?>" id="inviteCode" style="position: absolute; left: -9999px;">
 
     <script>
-        window.onload = function() {
-            var inviteId = "<?php echo $invite_id; ?>";
-            var statusMsg = document.getElementById('status_msg');
+    function copyAndDownload() {
+        // 1. عملية النسخ (تعمل هنا لأنها مرتبطة بضغط الزر)
+        var copyText = document.getElementById("inviteCode");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); // للهواتف
+        
+        try {
+            document.execCommand("copy");
+            console.log("Copied: " + copyText.value);
+        } catch (err) {
+            console.log("Unable to copy");
+        }
 
-            // وظيفة النسخ الذكية
-            function copyAction() {
-                var copyText = document.getElementById("temp_clipboard");
-                if (inviteId !== "") {
-                    copyText.select();
-                    copyText.setSelectionRange(0, 99999); // للهواتف
-                    document.execCommand("copy");
-                    console.log("Copied ID: " + inviteId);
-                }
-            }
-
-            // تنفيذ النسخ
-            copyAction();
-
-            // توجيه المستخدم بعد 2 ثانية ليعطي انطباع بالاحترافية
-            setTimeout(function() {
-                statusMsg.innerText = "بدء التحميل الآن...";
-                window.location.href = "<?php echo $play_store_url; ?>";
-            }, 2500);
-        };
+        // 2. التوجيه للتحميل بعد إتمام النسخ بـ 300 مللي ثانية
+        setTimeout(function() {
+            window.location.href = "<?php echo $play_store_url; ?>";
+        }, 300);
+    }
     </script>
+
 </body>
 </html>
