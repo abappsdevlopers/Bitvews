@@ -2,54 +2,62 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-// جلب البيانات تلقائياً من Railway
+// جلب البيانات تلقائياً من Railway (نفس متغيرات ملف الحفظ)
 $host = getenv('MYSQLHOST') ?: getenv('DATABASE_URL');
 $user = getenv('MYSQLUSER');
 $pass = getenv('MYSQLPASSWORD');
 $db   = getenv('MYSQLDATABASE');
 $port = getenv('MYSQLPORT') ?: "3306";
 
-// محاولة الاتصال
+// الاتصال باستخدام mysqli لضمان عمل الـ Driver
 $conn = new mysqli($host, $user, $pass, $db, $port);
 
 if ($conn->connect_error) {
     http_response_code(500);
-    die(json_encode(["error" => "Database connection failed: " . $conn->connect_error]));
+    die(json_encode(["status" => "error", "message" => "Connection failed: " . $conn->connect_error]));
 }
 
-// --- (هذا الجزء سيقوم بإنشاء الجدول تلقائياً إذا لم يكن موجوداً) ---
-$createTable = "CREATE TABLE IF NOT EXISTS users (
-    user_id VARCHAR(100) PRIMARY KEY,
-    user_name VARCHAR(50),
-    email VARCHAR(100) UNIQUE,
-    pass VARCHAR(100),
-    coins INT DEFAULT 0,
-    is_verified BOOLEAN DEFAULT FALSE
-)";
-$conn->query($createTable);
-// ------------------------------------------------------------------
-
+// استقبال البيانات من Godot
 $json = file_get_contents('php://input');
 $data = json_decode($json, true);
 
-if ($data) {
-    $uid = $conn->real_escape_string($data['user_id']);
-    $uname = $conn->real_escape_string($data['user_name']);
-    $email = $conn->real_escape_string($data['email']);
-    $upass = $conn->real_escape_string($data['pass']);
-    $coins = (int)$data['coins'];
-    $verified = $data['is_verified'] ? 1 : 0;
+if ($data && isset($data['referrer_id'])) {
+    // تنظيف البيانات لمنع الثغرات والمسافات الزائدة
+    $referrer_id = $conn->real_escape_string(trim($data['referrer_id']));
+    $reward = (int)$data['reward_amount'];
 
-    $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, is_verified) 
-            VALUES ('$uid', '$uname', '$email', '$upass', $coins, $verified) 
-            ON DUPLICATE KEY UPDATE 
-            user_name='$uname', coins=$coins, is_verified=$verified";
+    // التأكد من أن المعرف ليس فارغاً
+    if (!empty($referrer_id) && $reward > 0) {
+        
+        // تحديث العملات للمشارك (الداعي)
+        // استخدمنا نفس اسم العمود user_id من ملف الحفظ الخاص بك
+        $sql = "UPDATE users SET coins = coins + $reward WHERE user_id = '$referrer_id'";
 
-    if ($conn->query($sql) === TRUE) {
-        echo json_encode(["status" => "success"]);
+        if ($conn->query($sql) === TRUE) {
+            // التحقق هل تم العثور على الصف فعلياً؟
+            if ($conn->affected_rows > 0) {
+                echo json_encode([
+                    "status" => "success", 
+                    "message" => "Reward of $reward added to $referrer_id"
+                ]);
+            } else {
+                echo json_encode([
+                    "status" => "error", 
+                    "message" => "Referrer ID not found in database"
+                ]);
+            }
+        } else {
+            echo json_encode([
+                "status" => "error", 
+                "message" => "Query error: " . $conn->error
+            ]);
+        }
     } else {
-        http_response_code(400);
-        echo json_encode(["error" => $conn->error]);
+        echo json_encode(["status" => "error", "message" => "Invalid ID or Reward"]);
     }
+} else {
+    echo json_encode(["status" => "error", "message" => "No data received"]);
 }
+
 $conn->close();
+?>
