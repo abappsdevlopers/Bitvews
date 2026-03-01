@@ -14,7 +14,6 @@ if ($conn->connect_error) {
     die(json_encode(["status" => "error", "message" => "Connection failed"]));
 }
 
-// ضبط التشفير لضمان قراءة الرموز مثل @ بشكل صحيح
 $conn->set_charset("utf8mb4");
 
 $json = file_get_contents('php://input');
@@ -24,31 +23,42 @@ $referrer_id = $data['referrer_id'] ?? null;
 $reward = (int)($data['reward_amount'] ?? 0);
 
 if ($referrer_id && $reward > 0) {
-    // تنظيف المعرف من أي مسافات مخفية
-    $referrer_id = trim($referrer_id);
+    // 1. تنظيف المعرف المرسل من أي مسافات أو أسطر جديدة مخفية
+    $referrer_id = preg_replace('/\s+/', '', $referrer_id);
 
-    // استخدام Prepared Statement لضمان مطابقة النص 100%
-    $stmt = $conn->prepare("UPDATE users SET coins = coins + ? WHERE user_id = ?");
-    $stmt->bind_param("is", $reward, $referrer_id); // i للرقم، s للنص
+    // 2. تحديث الرصيد مع تنظيف العمود في قاعدة البيانات أثناء البحث لضمان التطابق
+    // نستخدم TRIM لحذف المسافات من الجانبين في قاعدة البيانات
+    $stmt = $conn->prepare("UPDATE users SET coins = coins + ? WHERE TRIM(user_id) = ?");
+    $stmt->bind_param("is", $reward, $referrer_id);
     $stmt->execute();
 
     if ($stmt->affected_rows > 0) {
         echo json_encode([
             "status" => "success", 
-            "message" => "Reward added to $referrer_id"
+            "message" => "Reward granted to $referrer_id"
         ]);
     } else {
-        // إذا وصلنا هنا، يعني السيرفر لم يجد تطابقاً بين النص المرسل والقاعدة
+        // إذا فشل التحديث، نقوم بعمل استعلام فحص (Debug) لنرى لماذا لا يجد المعرف
+        $check = $conn->prepare("SELECT user_id FROM users WHERE user_id LIKE ?");
+        $search_like = "%" . substr($referrer_id, -5) . "%"; // البحث بآخر 5 أرقام للتأكد
+        $check->bind_param("s", $search_like);
+        $check->execute();
+        $res = $check->get_result();
+        
+        $found_similar = [];
+        while($row = $res->fetch_assoc()) { $found_similar[] = $row['user_id']; }
+
         echo json_encode([
             "status" => "error", 
-            "message" => "No match found for ID",
-            "sent_id" => $referrer_id
+            "message" => "Strict match failed",
+            "sent_id" => $referrer_id,
+            "similar_ids_in_db" => $found_similar // سيظهر لك هنا كيف هو مخزن فعلياً في القاعدة
         ]);
+        $check->close();
     }
     $stmt->close();
 } else {
     echo json_encode(["status" => "error", "message" => "Invalid data"]);
 }
-
 $conn->close();
 ?>
