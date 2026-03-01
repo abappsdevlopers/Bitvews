@@ -24,6 +24,7 @@ $createTable = "CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100) UNIQUE,
     pass VARCHAR(100),
     coins INT DEFAULT 0,
+    impressions INT DEFAULT 0,
     is_verified BOOLEAN DEFAULT FALSE
 )";
 $conn->query($createTable);
@@ -38,13 +39,14 @@ if ($data) {
     $email = $conn->real_escape_string($data['email']);
     $upass = $conn->real_escape_string($data['pass']);
     $coins = (int)$data['coins'];
+    $impressions = (int)$data['impressions'];
     $verified = isset($data['is_verified']) && $data['is_verified'] ? 1 : 0;
 
     // استعلام الإدخال أو التحديث في حال تكرار المفتاح
-    $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, is_verified) 
-            VALUES ('$uid', '$uname', '$email', '$upass', $coins, $verified) 
+    $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, impressions, is_verified) 
+            VALUES ('$uid', '$uname', '$email', '$upass', $coins, $impressions, $verified) 
             ON DUPLICATE KEY UPDATE 
-            user_name='$uname', coins=$coins, is_verified=$verified";
+            user_name='$uname', coins=$coins, impressions=$impressions, is_verified=$verified";
 
     if ($conn->query($sql) === TRUE) {
         echo json_encode(["status" => "success"]);
