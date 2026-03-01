@@ -17,17 +17,22 @@ if ($conn->connect_error) {
     die(json_encode(["error" => "Database connection failed: " . $conn->connect_error]));
 }
 
-// --- (هذا الجزء سيقوم بإنشاء الجدول تلقائياً إذا لم يكن موجوداً) ---
+// --- (تعديل: إنشاء الجدول أو تحديثه لإضافة الأعمدة الناقصة) ---
 $createTable = "CREATE TABLE IF NOT EXISTS users (
     user_id VARCHAR(100) PRIMARY KEY,
     user_name VARCHAR(50),
     email VARCHAR(100) UNIQUE,
     pass VARCHAR(100),
     coins INT DEFAULT 0,
-    impressions INT DEFAULT 0,
     is_verified BOOLEAN DEFAULT FALSE
 )";
 $conn->query($createTable);
+
+// فحص يدوي لعمود impressions (لأن الجدول موجود مسبقاً)
+$checkImp = $conn->query("SHOW COLUMNS FROM users LIKE 'impressions'");
+if ($checkImp->num_rows == 0) {
+    $conn->query("ALTER TABLE users ADD COLUMN impressions INT DEFAULT 0 AFTER coins");
+}
 // ------------------------------------------------------------------
 
 $json = file_get_contents('php://input');
@@ -39,7 +44,7 @@ if ($data) {
     $email = $conn->real_escape_string($data['email']);
     $upass = $conn->real_escape_string($data['pass']);
     $coins = (int)$data['coins'];
-    $impressions = (int)$data['impressions'];
+    $impressions = (int)($data['impressions'] ?? 0); // التأكد من وجود القيمة أو وضع 0
     $verified = isset($data['is_verified']) && $data['is_verified'] ? 1 : 0;
 
     // استعلام الإدخال أو التحديث في حال تكرار المفتاح
