@@ -21,6 +21,7 @@ if ($result && $result->num_rows > 0) {
     $row = $result->fetch_assoc();
     // تحويل البيانات لأنواعها الأصلية
     $row['coins'] = (int)$row['coins'];
+    $row['impressions'] = (int)$row['impressions'];
     $row['is_verified'] = (bool)$row['is_verified'];
     echo json_encode($row);
 } else {
