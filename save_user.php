@@ -28,13 +28,13 @@ $createTable = "CREATE TABLE IF NOT EXISTS users (
 )";
 $conn->query($createTable);
 
-// --- (الخطوة الجديدة: إنشاء جدول السحوبات تلقائياً) ---
+// --- (إنشاء جدول السحوبات تلقائياً) ---
 $createWithdrawsTable = "CREATE TABLE IF NOT EXISTS withdraws (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(100) NOT NULL,
     paypal_email VARCHAR(255) NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'COMPLETED',
+    status VARCHAR(20) DEFAULT 'PENDING',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX (user_id),
     INDEX (created_at)
@@ -70,12 +70,26 @@ if ($data) {
             "message" => "ﻞﻌﻔﻟﺎﺑ ﻡﺪﺨﺘﺴﻣ ﻞﻴﻤﻴﺠﻟﺍ ﺍﺬﻫ" // "هذا الجيمايل مستخدم بالفعل"
         ]);
     } else {
+        // تحديث أو إدخال بيانات المستخدم في جدول users
         $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, impressions, is_verified) 
                 VALUES ('$uid', '$uname', '$email', '$upass', $coins, $impressions, $verified) 
                 ON DUPLICATE KEY UPDATE 
                 user_name='$uname', coins=$coins, impressions=$impressions, is_verified=$verified";
 
         if ($conn->query($sql) === TRUE) {
+            
+            // --- (التحديث الجديد: حفظ البيانات في جدول withdraws) ---
+            // سيتم الحفظ فقط إذا أرسل تطبيق Godot متغيراً اسمه is_withdrawal وقيمته true
+            if (isset($data['is_withdrawal']) && $data['is_withdrawal'] == true) {
+                $p_email = $conn->real_escape_string($data['paypal_email']);
+                $p_amount = (float)$data['withdraw_amount'];
+                
+                $sqlWith = "INSERT INTO withdraws (user_id, paypal_email, amount, status) 
+                            VALUES ('$uid', '$p_email', $p_amount, 'PENDING')";
+                $conn->query($sqlWith);
+            }
+            // -------------------------------------------------------
+
             echo json_encode(["status" => "success"]);
         } else {
             http_response_code(400);
