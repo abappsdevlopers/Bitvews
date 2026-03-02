@@ -44,20 +44,32 @@ if ($data) {
     $email = $conn->real_escape_string($data['email']);
     $upass = $conn->real_escape_string($data['pass']);
     $coins = (int)$data['coins'];
-    $impressions = (int)($data['impressions'] ?? 0); // التأكد من وجود القيمة أو وضع 0
+    $impressions = (int)($data['impressions'] ?? 0); 
     $verified = isset($data['is_verified']) && $data['is_verified'] ? 1 : 0;
 
-    // استعلام الإدخال أو التحديث في حال تكرار المفتاح
-    $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, impressions, is_verified) 
-            VALUES ('$uid', '$uname', '$email', '$upass', $coins, $impressions, $verified) 
-            ON DUPLICATE KEY UPDATE 
-            user_name='$uname', coins=$coins, impressions=$impressions, is_verified=$verified";
-
-    if ($conn->query($sql) === TRUE) {
-        echo json_encode(["status" => "success"]);
-    } else {
+    // --- الخطوة الجديدة: التحقق من وجود الإيميل لمستخدم آخر ---
+    $checkEmail = $conn->query("SELECT user_id FROM users WHERE email = '$email' AND user_id != '$uid'");
+    
+    if ($checkEmail && $checkEmail->num_rows > 0) {
+        // الإيميل موجود مسبقاً لمستخدم بـ ID مختلف
         http_response_code(400);
-        echo json_encode(["error" => $conn->error]);
+        echo json_encode([
+            "status" => "error", 
+            "message" => "ﻞﻌﻔﻟﺎﺑ ﻡﺪﺨﺘﺴﻣ ﻞﻴﻤﻴﺠﻟﺍ ﺍﺬﻫ" // "هذا الجيمايل مستخدم بالفعل"
+        ]);
+    } else {
+        // إذا كان الإيميل جديداً أو يخص نفس المستخدم الحالي، نقوم بالإدخال أو التحديث
+        $sql = "INSERT INTO users (user_id, user_name, email, pass, coins, impressions, is_verified) 
+                VALUES ('$uid', '$uname', '$email', '$upass', $coins, $impressions, $verified) 
+                ON DUPLICATE KEY UPDATE 
+                user_name='$uname', coins=$coins, impressions=$impressions, is_verified=$verified";
+
+        if ($conn->query($sql) === TRUE) {
+            echo json_encode(["status" => "success"]);
+        } else {
+            http_response_code(400);
+            echo json_encode(["error" => $conn->error]);
+        }
     }
 } else {
     echo json_encode(["error" => "No data received"]);
