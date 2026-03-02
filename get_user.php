@@ -18,7 +18,6 @@ if ($conn->connect_error) {
 }
 
 // --- التأكد من وجود عمود impressions قبل جلب البيانات ---
-// هذه الخطوة تضمن عدم حدوث خطأ SQL إذا كان الجدول قديماً
 $checkImp = $conn->query("SHOW COLUMNS FROM users LIKE 'impressions'");
 if ($checkImp->num_rows == 0) {
     $conn->query("ALTER TABLE users ADD COLUMN impressions INT DEFAULT 0 AFTER coins");
@@ -39,6 +38,13 @@ $result = $conn->query($sql);
 
 if ($result && $result->num_rows > 0) {
     $row = $result->fetch_assoc();
+    $uid = $row['user_id'];
+
+    // --- خطوة إضافية: جلب إجمالي المسحوبات من جدول withdraws ---
+    $withdrawQuery = $conn->query("SELECT SUM(amount) as total_out FROM withdraws WHERE user_id = '$uid'");
+    $withdrawData = $withdrawQuery->fetch_assoc();
+    $row['total_withdrawn'] = (float)($withdrawData['total_out'] ?? 0.0);
+    // -------------------------------------------------------
     
     // تحويل البيانات لأنواعها الأصلية لسهولة التعامل معها في Godot
     $row['coins'] = (int)$row['coins'];
