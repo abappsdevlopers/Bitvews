@@ -5,7 +5,7 @@ header("Content-Type: application/json");
 // --- 1. إعدادات بايبال (ضع بياناتك هنا) ---
 $PAYPAL_CLIENT_ID = 'AWThXWiB-oAtl9d3kesHixlkgh5Xk-euf08T2eybLEJskDXQSBaJilrS8J434sa-6qBJngrOWoqF-6ns';
 $PAYPAL_SECRET    = 'EEHcG7kFgSu86ZUaVOD3JQ10wS2UADbqbUU7OHwKXOZ8KRgPJzSibb7bFF80k9SSpyaKtr3IQNl9DfLj';
-$PAYPAL_URL       = "https://sandbox.paypal.com"; // للتيست استخدم: https://api-m.sandbox.paypal.com
+$PAYPAL_URL       = "https://api-m.sandbox.paypal.com"; // للتيست استخدم: https://api-m.sandbox.paypal.com
 
 // --- 2. إعدادات الحماية والتحويل ---
 $MIN_POINTS       = 50000;      // الحد الأدنى للسحب (5000 نقطة)
@@ -33,7 +33,7 @@ if (!$data || !isset($data['user_id']) || !isset($data['paypal_email']) || !isse
     die(json_encode(["error" => "Missing parameters"]));
 }
 
-$user_id = $conn->real_escape_string($data['user_id']);
+$uid = $conn->real_escape_string($data['user_id']);
 $receiver_email = $conn->real_escape_string($data['paypal_email']);
 $requested_points = (int)$data['amount'];
 
