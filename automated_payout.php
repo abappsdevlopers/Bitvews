@@ -5,7 +5,7 @@ header("Content-Type: application/json");
 // --- 1. إعدادات بايبال ---
 $PAYPAL_CLIENT_ID = 'AWThXWiB-oAtl9d3kesHixlkgh5Xk-euf08T2eybLEJskDXQSBaJilrS8J434sa-6qBJngrOWoqF-6ns';
 $PAYPAL_SECRET    = 'EEHcG7kFgSu86ZUaVOD3JQ10wS2UADbqbUU7OHwKXOZ8KRgPJzSibb7bFF80k9SSpyaKtr3IQNl9DfLj';
-$PAYPAL_URL       = "https://api-m.sandbox.paypal.com"; 
+$PAYPAL_URL       = "https://api-m.paypal.com"; 
 
 // --- 2. إعدادات الحماية والتحويل (تحديث حسب خوارزميتك) ---
 $MIN_WITHDRAW_USD = 1.0;          // الحد الأدنى للسحب بالدولار
