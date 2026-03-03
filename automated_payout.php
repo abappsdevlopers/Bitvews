@@ -3,8 +3,8 @@ header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
 // --- 1. إعدادات بايبال ---
-$PAYPAL_CLIENT_ID = 'AWThXWiB-oAtl9d3kesHixlkgh5Xk-euf08T2eybLEJskDXQSBaJilrS8J434sa-6qBJngrOWoqF-6ns';
-$PAYPAL_SECRET    = 'EEHcG7kFgSu86ZUaVOD3JQ10wS2UADbqbUU7OHwKXOZ8KRgPJzSibb7bFF80k9SSpyaKtr3IQNl9DfLj';
+$PAYPAL_CLIENT_ID = 'AXcN7vDe-p767Vm1gdJjb6kWvlPDNGywvihwy3l-TgmlTxilFFfuKcSi2sO3mnxvw-I1UYYERJu7jzIx';
+$PAYPAL_SECRET    = 'ENcFjuMOGcNWzMQQ-lHy2-p8JcF4Z1zKF-Jx16YUEcMEh9PqrfskjW4FW8HelQU2GAWeixAVlId1-N_w';
 $PAYPAL_URL       = "https://api-m.paypal.com"; 
 
 // --- 2. إعدادات الحماية والتحويل (تحديث حسب خوارزميتك) ---
