@@ -33,7 +33,7 @@ if (!$data || !isset($data['user_id']) || !isset($data['paypal_email']) || !isse
     die(json_encode(["error" => "Missing parameters"]));
 }
 
-$uid = $conn->real_escape_string($data['user_id']);
+$user_id = $conn->real_escape_string($data['user_id']);
 $receiver_email = $conn->real_escape_string($data['paypal_email']);
 $requested_points = (int)$data['amount'];
 
