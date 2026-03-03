@@ -2,17 +2,17 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-// --- 1. إعدادات بايبال (ضع بياناتك هنا) ---
+// --- 1. إعدادات بايبال ---
 $PAYPAL_CLIENT_ID = 'AWThXWiB-oAtl9d3kesHixlkgh5Xk-euf08T2eybLEJskDXQSBaJilrS8J434sa-6qBJngrOWoqF-6ns';
 $PAYPAL_SECRET    = 'EEHcG7kFgSu86ZUaVOD3JQ10wS2UADbqbUU7OHwKXOZ8KRgPJzSibb7bFF80k9SSpyaKtr3IQNl9DfLj';
-$PAYPAL_URL       = "https://api-m.sandbox.paypal.com"; // للتيست استخدم: https://api-m.sandbox.paypal.com
+$PAYPAL_URL       = "https://api-m.sandbox.paypal.com"; 
 
-// --- 2. إعدادات الحماية والتحويل ---
-$MIN_POINTS       = 50000;      // الحد الأدنى للسحب (5000 نقطة)
-$DAILY_LIMIT_USD  = 50.0;      // الحد الأقصى للسحب اليومي (50 دولار)
-$POINTS_TO_USD    = 0.001;     // كل 1000 نقطة = 1 دولار
+// --- 2. إعدادات الحماية والتحويل (تحديث حسب خوارزميتك) ---
+$MIN_WITHDRAW_USD = 1.0;          // الحد الأدنى للسحب بالدولار
+$DAILY_LIMIT_USD  = 50.0;         // الحد الأقصى اليومي بالدولار
+$CONVERSION_RATE  = 1.03;         // المعامل المضاف في خوارزميتك
 
-// --- 3. الاتصال بقاعدة البيانات (Railway) ---
+// --- 3. الاتصال بقاعدة البيانات ---
 $host = getenv('MYSQLHOST');
 $user = getenv('MYSQLUSER');
 $pass = getenv('MYSQLPASSWORD');
@@ -35,15 +35,26 @@ if (!$data || !isset($data['user_id']) || !isset($data['paypal_email']) || !isse
 
 $uid = $conn->real_escape_string($data['user_id']);
 $receiver_email = $conn->real_escape_string($data['paypal_email']);
-$requested_points = (int)$data['amount'];
+$payout_amount_usd = (float)$data['amount']; // القيمة القادمة بالدولار من Godot
 
-// أ- التحقق من الرصيد في القاعدة
+/** * عكس الخوارزمية: 
+ * إذا كان USD = (Points / 10000) * 1.03
+ * إذن Points = (USD / 1.03) * 10000
+ */
+$requested_points = ($payout_amount_usd / $CONVERSION_RATE) * 10000;
+$requested_points = ceil($requested_points); // تقريب للأعلى لضمان النزاهة في الخصم
+
+// أ- التحقق من الرصيد والحد الأدنى
 $userQuery = $conn->query("SELECT coins FROM users WHERE user_id = '$uid'");
 $userData = $userQuery->fetch_assoc();
 
-if (!$userData || $userData['coins'] < $requested_points || $requested_points < $MIN_POINTS) {
+if (!$userData || $userData['coins'] < $requested_points || $payout_amount_usd < $MIN_WITHDRAW_USD) {
     http_response_code(400);
-    die(json_encode(["status" => "error", "message" => "ﻲﻓﺎﻛ ﺮﻴﻏ ﺪﻴﺻﺮﻟﺍ"])); // رصيد غير كافي
+    die(json_encode([
+        "status" => "error", 
+        "message" => "ﻲﻓﺎﻛ ﺮﻴﻏ ﺪﻴﺻﺮﻟﺍ", // رصيد غير كافي
+        "debug_required" => $requested_points
+    ]));
 }
 
 // ب- التحقق من الحد اليومي
@@ -51,14 +62,13 @@ $today = date('Y-m-d');
 $limitCheck = $conn->query("SELECT SUM(amount) as total FROM withdraws WHERE user_id = '$uid' AND DATE(created_at) = '$today'");
 $limitData = $limitCheck->fetch_assoc();
 $current_spent = $limitData['total'] ?? 0;
-$payout_amount_usd = $requested_points * $POINTS_TO_USD;
 
 if (($current_spent + $payout_amount_usd) > $DAILY_LIMIT_USD) {
     http_response_code(400);
     die(json_encode(["status" => "error", "message" => "ﻲﻣﻮﻴﻟﺍ ﺪﺤﻟﺍ ﺯﻭﺎﺠﺗ"])); // تجاوز الحد اليومي
 }
 
-// --- 5. الحصول على PayPal Access Token ---
+// --- 5. PayPal Auth & Payout ---
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $PAYPAL_URL . "/v1/oauth2/token");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -73,12 +83,11 @@ if (!isset($token_data->access_token)) {
 }
 $access_token = $token_data->access_token;
 
-
 $payout_data = [
     "sender_batch_header" => [
         "sender_batch_id" => uniqid("BitView_"),
         "email_subject" => "You have a payout!",
-        "email_message" => "Thanks for using BitView. You received your reward!"
+        "email_message" => "Thanks for using our app. You received your reward!"
     ],
     "items" => [[
         "recipient_type" => "EMAIL",
@@ -93,7 +102,7 @@ $payout_data = [
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $PAYPAL_URL . "/v1/payments/payouts");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
+curl_setopt($ch, CURLOPT_HTTPHEADER = [
     "Content-Type: application/json",
     "Authorization: Bearer " . $access_token
 ]);
@@ -101,17 +110,19 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payout_data));
 $payout_result = curl_exec($ch);
 $payout_res_data = json_decode($payout_result);
 
-
 if (isset($payout_res_data->batch_header)) {
-    
+    // خصم النقاط المحسوبة من المعادلة العكسية
     $conn->query("UPDATE users SET coins = coins - $requested_points WHERE user_id = '$uid'");
-    $conn->query("INSERT INTO withdraws (user_id, paypal_email, amount, status) VALUES ('$uid', '$receiver_email', $payout_amount_usd, 'COMPLETED')");
+    
+    // تسجيل العملية بالدولار في السجل
+    $stmt = $conn->prepare("INSERT INTO withdraws (user_id, paypal_email, amount, status) VALUES (?, ?, ?, 'COMPLETED')");
+    $stmt->bind_param("ssd", $uid, $receiver_email, $payout_amount_usd);
+    $stmt->execute();
     
     echo json_encode(["status" => "success", "message" => "ﺡﺎﺠﻨﺑ ﻝﺎﺳﺭﻹﺍ ﻢﺗ"]);
 } else {
-    // فشل من جهة بايبال
     http_response_code(400);
-    echo json_encode(["status" => "error", "message" => "ﻝﺎﺳﺭﻹﺍ ﻲﻓ ﻞﺸﻓ"]);
+    echo json_encode(["status" => "error", "message" => "ﻝﺎﺳﺭﻹﺍ ﻲﻓ ﻞﺸﻓ", "details" => $payout_res_data]);
 }
 
 curl_close($ch);
