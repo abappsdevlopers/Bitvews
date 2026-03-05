@@ -1,210 +1,64 @@
 <?php
-// تفعيل إدارة الجلسات فوراً
 session_start();
-
-// تفعيل إظهار الأخطاء للتشخيص
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// الاتصال بقاعدة البيانات
-$host = getenv('MYSQLHOST');
-$user = getenv('MYSQLUSER');
-$pass = getenv('MYSQLPASSWORD');
-$db   = getenv('MYSQLDATABASE');
-$port = getenv('MYSQLPORT') ?: "3306";
-
-$conn = new mysqli($host, $user, $pass, $db, $port);
-
-if ($conn->connect_error) {
-    die("فشل الاتصال بقاعدة البيانات: " . $conn->connect_error);
-}
+// الاتصال المباشر
+$conn = new mysqli(getenv('MYSQLHOST'), getenv('MYSQLUSER'), getenv('MYSQLPASSWORD'), getenv('MYSQLDATABASE'), getenv('MYSQLPORT') ?: "3306");
+if ($conn->connect_error) { die("خطأ اتصال: " . $conn->connect_error); }
 $conn->set_charset("utf8mb4");
 
-// 1. إنشاء الجداول تلقائياً إذا لم تكن موجودة
+// 1. التأكد من وجود جدول المديرين فقط
 $conn->query("CREATE TABLE IF NOT EXISTS admins (admin_id VARCHAR(100) PRIMARY KEY)");
 $conn->query("INSERT IGNORE INTO admins (admin_id) VALUES ('1772506140')");
 
-// 2. معالجة العمليات (أزرار التحكم)
-if (isset($_GET['approve_id']) && isset($_SESSION['admin_logged'])) {
-    $id = (int)$_GET['approve_id'];
-    $conn->query("UPDATE withdraws SET status='COMPLETED' WHERE id=$id");
-    header("Location: admin.php"); exit;
-}
-if (isset($_GET['delete_withdraw']) && isset($_SESSION['admin_logged'])) {
-    $id = (int)$_GET['delete_withdraw'];
-    $conn->query("DELETE FROM withdraws WHERE id=$id");
-    header("Location: admin.php"); exit;
-}
-
-// 3. تسجيل الدخول
-$error = "";
-if (isset($_POST['login'])) {
+// 2. منطق تسجيل الدخول
+if (isset($_POST['uid'])) {
     $uid = $conn->real_escape_string($_POST['uid']);
     $res = $conn->query("SELECT * FROM admins WHERE admin_id = '$uid'");
     if ($res && $res->num_rows > 0) {
         $_SESSION['admin_logged'] = true;
-        $_SESSION['admin_id'] = $uid;
-        header("Location: admin.php"); exit;
-    } else {
-        $error = "عذراً، الـ ID غير مسجل كمدير!";
     }
 }
+if (isset($_GET['logout'])) { session_destroy(); header("Location: admin.php"); exit; }
 
-// 4. الخروج
-if (isset($_GET['logout'])) {
-    session_destroy();
-    header("Location: admin.php"); exit;
+// 3. التحقق
+if (!isset($_SESSION['admin_logged'])) {
+    echo '<!DOCTYPE html><html dir="rtl"><head><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head>
+    <body class="bg-dark p-5"><form method="POST" class="card p-3 mx-auto" style="max-width:300px;"><input type="text" name="uid" class="form-control mb-2" placeholder="ID" required><button class="btn btn-primary w-100">دخول</button></form></body></html>';
+    exit;
 }
 
-// 5. حماية الصفحة وعرض الواجهة
-if (!isset($_SESSION['admin_logged'])) {
+// 4. العمليات (قبول/حذف)
+if (isset($_GET['approve'])) { $conn->query("UPDATE withdraws SET status='COMPLETED' WHERE id=".(int)$_GET['approve']); header("Location: admin.php"); }
+if (isset($_GET['delete'])) { $conn->query("DELETE FROM withdraws WHERE id=".(int)$_GET['delete']); header("Location: admin.php"); }
 ?>
+
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <title>تسجيل دخول الإدارة</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>body{background:#0f172a; color:#fff;}</style>
 </head>
-<body class="bg-dark text-white d-flex align-items-center justify-content-center" style="height:100vh;">
-    <div class="card p-4 bg-secondary shadow" style="width:300px;">
-        <h4 class="text-center">بوابة الإدارة</h4>
-        <form method="POST">
-            <input type="text" name="uid" class="form-control mb-3" placeholder="أدخل معرف الـ ID" required>
-            <button name="login" class="btn btn-primary w-100">دخول</button>
-        </form>
-        <p class="text-danger mt-2 text-center"><?php echo $error; ?></p>
-    </div>
-</body>
-</html>
-<?php exit; } ?>
-<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <title>لوحة التحكم</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-primary p-3">
-        <span class="navbar-brand">BitView Admin</span>
-        <a href="?logout=1" class="btn btn-danger btn-sm">خروج</a>
-    </nav>
-    <div class="container mt-4">
-        <table class="table table-striped">
-            <thead><tr><th>الإيميل</th><th>المبلغ</th><th>إجراء</th></tr></thead>
-            <tbody>
-                <?php 
-                $res = $conn->query("SELECT * FROM withdraws WHERE status='PENDING'");
-                while($w = $res->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $w['paypal_email'] ?></td>
-                    <td><?= $w['amount'] ?>$</td>
-                    <td>
-                        <a href="?approve_id=<?=$w['id']?>" class="btn btn-success btn-sm">قبول</a>
-                        <a href="?delete_withdraw=<?=$w['id']?>" class="btn btn-danger btn-sm">حذف</a>
-                    </td>
-                </tr>
-                <?php endwhile; ?>
-            </tbody>
+<body class="p-3">
+    <div class="d-flex justify-content-between mb-3"><h4>لوحة التحكم</h4><a href="?logout=1" class="btn btn-danger btn-sm">خروج</a></div>
+    
+    <div class="card bg-dark text-white p-3">
+        <h6>طلبات السحب المعلقة</h6>
+        <table class="table table-dark table-sm">
+            <?php $res = $conn->query("SELECT * FROM withdraws WHERE status='PENDING'");
+            while($row = $res->fetch_assoc()): ?>
+            <tr>
+                <td><?=$row['paypal_email']?></td>
+                <td><?=$row['amount']?>$</td>
+                <td>
+                    <a href="?approve=<?=$row['id']?>" class="btn btn-success btn-sm"><i class="fas fa-check"></i></a>
+                    <a href="?delete=<?=$row['id']?>" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></a>
+                </td>
+            </tr>
+            <?php endwhile; ?>
         </table>
     </div>
-</body>
-</html>
-<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دخول الإدارة</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<style>body{background:#0f172a; display:flex; align-items:center; justify-content:center; height:100vh; color:white;}</style></head>
-<body><div class="card bg-dark border-secondary p-4 shadow-lg" style="width:350px;">
-<h4 class="text-center mb-4"><i class="fas fa-user-lock"></i> بوابة المطور</h4>
-<form method="POST"><input type="text" name="uid" class="form-control mb-3 bg-secondary text-white border-0" placeholder="أدخل معرف الـ ID" required>
-<button name="login" class="btn btn-primary w-100 fw-bold">تسجيل الدخول</button></form>
-<?php if(isset($error)) echo "<p class='text-danger mt-3 text-center small'>$error</p>"; ?>
-</div></body></html>
-<?php exit; } ?>
-
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BitView Admin Panel</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { background: #0f172a; color: #f8fafc; padding-bottom: 80px; }
-        .card { background: #1e293b; border: none; border-radius: 12px; margin-bottom: 15px; }
-        .table { color: #cbd5e1; border-color: #334155; }
-        .status-pending { color: #fbbf24; font-weight: bold; }
-        .btn-approve { background: #10b981; border: none; color: white; }
-    </style>
-</head>
-<body class="container py-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-4 bg-primary p-3 rounded-3 shadow">
-        <h5 class="mb-0"><i class="fas fa-terminal"></i> لوحة الإدارة الذكية</h5>
-        <a href="?logout=1" class="btn btn-sm btn-light rounded-circle"><i class="fas fa-power-off text-danger"></i></a>
-    </div>
-
-    <div class="row g-2 mb-4">
-        <div class="col-6"><div class="card p-3 text-center text-info border-bottom border-info border-4">
-            <h4 class="mb-0"><?= $conn->query("SELECT user_id FROM users")->num_rows ?></h4><small>إجمالي المستخدمين</small>
-        </div></div>
-        <div class="col-6"><div class="card p-3 text-center text-warning border-bottom border-warning border-4">
-            <h4 class="mb-0"><?= $conn->query("SELECT id FROM withdraws WHERE status='PENDING'")->num_rows ?></h4><small>سحوبات معلقة</small>
-        </div></div>
-    </div>
-
-    <div class="card p-3 shadow-sm">
-        <h6 class="mb-3 text-warning"><i class="fab fa-paypal"></i> طلبات السحب المعلقة</h6>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle">
-                <thead><tr><th>الإيميل</th><th>المبلغ</th><th>إجراء</th></tr></thead>
-                <tbody>
-                    <?php 
-                    $withdraws = $conn->query("SELECT * FROM withdraws WHERE status='PENDING' ORDER BY created_at DESC");
-                    while($w = $withdraws->fetch_assoc()): ?>
-                    <tr>
-                        <td class="small"><?= $w['paypal_email'] ?></td>
-                        <td class="fw-bold"><?= $w['amount'] ?>$</td>
-                        <td>
-                            <div class="btn-group">
-                                <a href="?approve_id=<?= $w['id'] ?>" class="btn btn-sm btn-approve"><i class="fas fa-check"></i></a>
-                                <a href="?delete_withdraw=<?= $w['id'] ?>" class="btn btn-sm btn-outline-danger border-0"><i class="fas fa-trash"></i></a>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="card p-3 mt-4 shadow-sm">
-        <h6 class="mb-3 text-primary"><i class="fas fa-users"></i> جميع الأعضاء</h6>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle">
-                <thead><tr class="text-secondary small"><th>الاسم</th><th>النقاط</th><th>التواصل</th></tr></thead>
-                <tbody>
-                    <?php $users = $conn->query("SELECT * FROM users LIMIT 20");
-                    while($u = $users->fetch_assoc()): ?>
-                    <tr>
-                        <td class="small fw-bold text-truncate" style="max-width: 80px;"><?= $u['user_name'] ?></td>
-                        <td><span class="badge bg-dark text-success border border-success"><?= number_format($u['coins']) ?></span></td>
-                        <td><a href="mailto:<?= $u['email'] ?>" class="text-info"><i class="fas fa-envelope fs-5"></i></a></td>
-                    </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="card p-3 mt-4 bg-dark">
-        <form method="POST" class="input-group input-group-sm">
-            <input type="text" name="new_adm" class="form-control bg-secondary text-white border-0" placeholder="إضافة ID إداري جديد">
-            <button class="btn btn-success" name="add_adm">إضافة</button>
-        </form>
-    </div>
-    <?php if(isset($_POST['add_adm'])){ $na = $conn->real_escape_string($_POST['new_adm']); $conn->query("INSERT IGNORE INTO admins VALUES ('$na')"); echo "<script>location.href='admin.php';</script>"; } ?>
-
 </body>
 </html>
