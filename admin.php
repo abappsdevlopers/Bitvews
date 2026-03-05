@@ -1,29 +1,43 @@
 <?php
+// تفعيل إدارة الجلسات فوراً
 session_start();
-ini_set('display_errors', 1); // لتشخيص أي مشكلة فوراً
+
+// تفعيل إظهار الأخطاء للتشخيص
+ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// الاتصال بقاعدة البيانات باستخدام متغيرات Railway
-$conn = new mysqli(getenv('MYSQLHOST'), getenv('MYSQLUSER'), getenv('MYSQLPASSWORD'), getenv('MYSQLDATABASE'), getenv('MYSQLPORT') ?: "3306");
+// الاتصال بقاعدة البيانات
+$host = getenv('MYSQLHOST');
+$user = getenv('MYSQLUSER');
+$pass = getenv('MYSQLPASSWORD');
+$db   = getenv('MYSQLDATABASE');
+$port = getenv('MYSQLPORT') ?: "3306";
+
+$conn = new mysqli($host, $user, $pass, $db, $port);
+
+if ($conn->connect_error) {
+    die("فشل الاتصال بقاعدة البيانات: " . $conn->connect_error);
+}
 $conn->set_charset("utf8mb4");
 
-// 1. التثبيت التلقائي للجداول (المديرين، السحوبات)
+// 1. إنشاء الجداول تلقائياً إذا لم تكن موجودة
 $conn->query("CREATE TABLE IF NOT EXISTS admins (admin_id VARCHAR(100) PRIMARY KEY)");
 $conn->query("INSERT IGNORE INTO admins (admin_id) VALUES ('1772506140')");
 
-// 2. معالجة العمليات (حذف، موافقة) قبل عرض الصفحة
-if (isset($_GET['approve_id'])) {
+// 2. معالجة العمليات (أزرار التحكم)
+if (isset($_GET['approve_id']) && isset($_SESSION['admin_logged'])) {
     $id = (int)$_GET['approve_id'];
     $conn->query("UPDATE withdraws SET status='COMPLETED' WHERE id=$id");
     header("Location: admin.php"); exit;
 }
-if (isset($_GET['delete_withdraw'])) {
+if (isset($_GET['delete_withdraw']) && isset($_SESSION['admin_logged'])) {
     $id = (int)$_GET['delete_withdraw'];
     $conn->query("DELETE FROM withdraws WHERE id=$id");
     header("Location: admin.php"); exit;
 }
 
-// 3. منطق تسجيل الدخول
+// 3. تسجيل الدخول
+$error = "";
 if (isset($_POST['login'])) {
     $uid = $conn->real_escape_string($_POST['uid']);
     $res = $conn->query("SELECT * FROM admins WHERE admin_id = '$uid'");
@@ -31,14 +45,72 @@ if (isset($_POST['login'])) {
         $_SESSION['admin_logged'] = true;
         $_SESSION['admin_id'] = $uid;
         header("Location: admin.php"); exit;
-    } else { $error = "عذراً، الـ ID غير مسجل كمدير!"; }
+    } else {
+        $error = "عذراً، الـ ID غير مسجل كمدير!";
+    }
 }
 
-if (isset($_GET['logout'])) { session_destroy(); header("Location: admin.php"); exit; }
+// 4. الخروج
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: admin.php"); exit;
+}
 
-// حماية الصفحة: إذا لم يسجل دخول تظهر واجهة الدخول فقط
+// 5. حماية الصفحة وعرض الواجهة
 if (!isset($_SESSION['admin_logged'])) {
 ?>
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>تسجيل دخول الإدارة</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-white d-flex align-items-center justify-content-center" style="height:100vh;">
+    <div class="card p-4 bg-secondary shadow" style="width:300px;">
+        <h4 class="text-center">بوابة الإدارة</h4>
+        <form method="POST">
+            <input type="text" name="uid" class="form-control mb-3" placeholder="أدخل معرف الـ ID" required>
+            <button name="login" class="btn btn-primary w-100">دخول</button>
+        </form>
+        <p class="text-danger mt-2 text-center"><?php echo $error; ?></p>
+    </div>
+</body>
+</html>
+<?php exit; } ?>
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة التحكم</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary p-3">
+        <span class="navbar-brand">BitView Admin</span>
+        <a href="?logout=1" class="btn btn-danger btn-sm">خروج</a>
+    </nav>
+    <div class="container mt-4">
+        <table class="table table-striped">
+            <thead><tr><th>الإيميل</th><th>المبلغ</th><th>إجراء</th></tr></thead>
+            <tbody>
+                <?php 
+                $res = $conn->query("SELECT * FROM withdraws WHERE status='PENDING'");
+                while($w = $res->fetch_assoc()): ?>
+                <tr>
+                    <td><?= $w['paypal_email'] ?></td>
+                    <td><?= $w['amount'] ?>$</td>
+                    <td>
+                        <a href="?approve_id=<?=$w['id']?>" class="btn btn-success btn-sm">قبول</a>
+                        <a href="?delete_withdraw=<?=$w['id']?>" class="btn btn-danger btn-sm">حذف</a>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
 <!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دخول الإدارة</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>body{background:#0f172a; display:flex; align-items:center; justify-content:center; height:100vh; color:white;}</style></head>
