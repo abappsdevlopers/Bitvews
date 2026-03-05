@@ -1,31 +1,32 @@
 <?php
-// 1. إعدادات الاتصال بقاعدة البيانات
-$host = getenv('MYSQLHOST') ?: getenv('DATABASE_URL');
-$user = getenv('MYSQLUSER');
-$pass = getenv('MYSQLPASSWORD');
-$port = getenv('MYSQLPORT') ?: "3306";
+// 1. تفعيل إظهار الأخطاء (مؤقتاً لحل مشكلة 500)
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+// 2. جلب المتغيرات من Railway
+$host   = getenv('MYSQLHOST') ?: 'localhost';
+$user   = getenv('MYSQLUSER');
+$pass   = getenv('MYSQLPASSWORD');
+$port   = getenv('MYSQLPORT') ?: "3306";
 $dbname = getenv('MYSQLDATABASE');
 
-$conn = new mysqli($host, $user, $pass, $dbname);
-
-// التحقق من الاتصال
-if ($conn->connect_error) {
-    die("<div class='alert alert-danger'>فشل الاتصال: " . $conn->connect_error . "</div>");
+// 3. محاولة الاتصال مع معالجة الأخطاء
+try {
+    // في ريلوي، أحياناً نحتاج لتمرير المنفذ (Port) كمعامل خامس
+    $conn = new mysqli($host, $user, $pass, $dbname, $port);
+    
+    // التحقق من وجود خطأ في الاتصال
+    if ($conn->connect_error) {
+        throw new Exception("فشل الاتصال: " . $conn->connect_error);
+    }
+    
+    $conn->set_charset("utf8mb4");
+} catch (Exception $e) {
+    // سيطبع لك الخطأ الحقيقي بدلاً من صفحة 500 البيضاء
+    die("<div style='color:red; background:#fff; padding:20px;'>
+            <h3>خطأ في قاعدة البيانات:</h3>" . $e->getMessage() . "
+         </div>");
 }
-
-// ضبط الترميز لدعم اللغة العربية
-$conn->set_charset("utf8mb4");
-
-// 2. نظام البحث (إذا كتب المطور شيئاً في خانة البحث)
-$search_query = "";
-if (isset($_GET['search']) && !empty($_GET['search'])) {
-    $search = $conn->real_escape_string($_GET['search']);
-    $search_query = " WHERE email LIKE '%$search%' OR username LIKE '%$search%' ";
-}
-
-// 3. جلب البيانات
-$sql = "SELECT id, username, email, points, created_at FROM users $search_query ORDER BY created_at DESC";
-$result = $conn->query($sql);
 ?>
 
 <!DOCTYPE html>
