@@ -1,9 +1,10 @@
 <?php
 // 1. إعدادات الاتصال بقاعدة البيانات
-$host = 'localhost';
-$user = 'your_username';
-$pass = 'your_password';
-$dbname = 'your_database_name';
+$host = getenv('MYSQLHOST') ?: getenv('DATABASE_URL');
+$user = getenv('MYSQLUSER');
+$pass = getenv('MYSQLPASSWORD');
+$port = getenv('MYSQLPORT') ?: "3306";
+$dbname = getenv('MYSQLDATABASE');
 
 $conn = new mysqli($host, $user, $pass, $dbname);
 
